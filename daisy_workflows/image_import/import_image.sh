@@ -41,6 +41,11 @@ SOURCE_SIZE_BYTES="$(gsutil du "${SOURCE_URL}" | grep -o '^[0-9]\+')"
 SOURCE_SIZE_GB=$(awk "BEGIN {print int(((${SOURCE_SIZE_BYTES}-1)/${BYTES_1GB}) + 1)}")
 IMAGE_PATH="/daisy-scratch/$(basename "${SOURCE_URL}")"
 
+# Validate input
+
+[[ -z "$SCRATCH_DISK_SIZE_GB" ]] && echo "ImportFailed: metadata scratch_disk_size_gb is not set" && exit 1
+[[ -z "$INFLATED_DISK_SIZE_GB" ]] && echo "ImportFailed: metadata inflated_disk_size_gb is not set" && exit 1
+
 # Print info.
 echo "#################" 2> /dev/null
 echo "# Configuration #" 2> /dev/null
@@ -64,6 +69,7 @@ function resizeDisk() {
   echo "Import: Resizing ${diskId} to ${requiredSizeInGb}GB in ${zone}."
   if ! out=$(gcloud -q compute disks resize "${diskId}" --size="${requiredSizeInGb}"GB --zone="${zone}" 2>&1 | tr "\n\r" " "); then
     if echo "$out" | grep -qP "compute\.disks\.resize"; then
+      echo $out
       echo "ImportFailed: Failed to resize disk. The Compute Engine default service account needs the role: roles/compute.storageAdmin"
     else
       echo "ImportFailed: Failed to resize disk. [Privacy-> resize disk ${diskId} to ${requiredSizeInGb}GB in ${zone}, error: ${out} <-Privacy]"
@@ -143,6 +149,22 @@ function serialOutputKeyValuePair() {
   echo "<serial-output key:'$1' value:'$2'>"
 }
 
+# Dup logic in api_inflater.go. If change anything here, please change in both places.
+function diskChecksum() {
+  set +x
+  CHECK_DEVICE=sdc
+  BLOCK_COUNT=$(cat /sys/class/block/$CHECK_DEVICE/size)
+
+  # Check size = 200000*512 = 100MB
+  CHECK_COUNT=200000
+  CHECKSUM1=$(sudo dd if=/dev/$CHECK_DEVICE ibs=512 skip=0 count=$CHECK_COUNT | md5sum)
+  CHECKSUM2=$(sudo dd if=/dev/$CHECK_DEVICE ibs=512 skip=$(( 2000000 - $CHECK_COUNT )) count=$CHECK_COUNT | md5sum)
+  CHECKSUM3=$(sudo dd if=/dev/$CHECK_DEVICE ibs=512 skip=$(( 20000000 - $CHECK_COUNT )) count=$CHECK_COUNT | md5sum)
+  CHECKSUM4=$(sudo dd if=/dev/$CHECK_DEVICE ibs=512 skip=$(( $BLOCK_COUNT - $CHECK_COUNT )) count=$CHECK_COUNT | md5sum)
+  echo "Import: $(serialOutputKeyValuePair "disk-checksum" "$CHECKSUM1-$CHECKSUM2-$CHECKSUM3-$CHECKSUM4")"
+  set -x
+}
+
 copyImageToScratchDisk
 
 # If the image is an OVA, then copy out its VMDK.
@@ -208,6 +230,8 @@ if ! out=$(qemu-img convert "${IMAGE_PATH}" -p -O raw -S 512b /dev/sdc 2>&1); th
   exit
 fi
 echo "${out}"
+
+diskChecksum
 
 sync
 

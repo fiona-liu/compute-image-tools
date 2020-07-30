@@ -67,7 +67,7 @@ func newBootableDiskProcessor(args ImportArguments, pd persistentDisk) (processo
 		translateWorkflowPath = args.CustomWorkflow
 	} else {
 		relPath := daisy_utils.GetTranslateWorkflowPath(args.OS)
-		translateWorkflowPath = path.Join(args.WorkflowDir, relPath)
+		translateWorkflowPath = path.Join(args.WorkflowDir, "image_import", relPath)
 	}
 
 	vars := map[string]string{
@@ -88,6 +88,10 @@ func newBootableDiskProcessor(args ImportArguments, pd persistentDisk) (processo
 	if err != nil {
 		return nil, err
 	}
+
+	// Temporary fix to ensure gcloud shows daisy's output.
+	// A less fragile approach is tracked in b/161567644.
+	workflow.Name = LogPrefix
 
 	return &bootableDiskProcessor{
 		workflow:        workflow,

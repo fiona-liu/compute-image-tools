@@ -27,6 +27,15 @@ import (
 	"github.com/GoogleCloudPlatform/compute-image-tools/cli_tools/common/imagefile"
 )
 
+// gcloud expects log lines to start with the substring "[import". Daisy
+// constructs the log prefix using the workflow's name.
+func TestCreateDaisyInflater_SetsWorkflowNameToGcloudPrefix(t *testing.T) {
+	inflater := createDaisyInflaterForImageSafe(t, ImportArguments{
+		Source: imageSource{uri: "projects/test/uri/image"},
+	})
+	assert.Equal(t, inflater.wf.Name, "import-image")
+}
+
 func TestCreateDaisyInflater_Image_HappyCase(t *testing.T) {
 	inflater := createDaisyInflaterForImageSafe(t, ImportArguments{
 		Source:      imageSource{uri: "projects/test/uri/image"},
@@ -205,7 +214,7 @@ func TestCreateDaisyInflater_File_NotWindows(t *testing.T) {
 
 func createDaisyInflaterSafe(t *testing.T, args ImportArguments,
 	inspector imagefile.Inspector) *daisyInflater {
-	args.WorkflowDir = "testdata/image_import"
+	args.WorkflowDir = "testdata"
 	inflater, err := createDaisyInflater(args, inspector)
 	assert.NoError(t, err)
 	realInflater, ok := inflater.(*daisyInflater)

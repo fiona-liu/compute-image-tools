@@ -69,7 +69,7 @@ func main() {
 		terminate(importArgs, err)
 	}
 
-	importRunner, err := importer.NewImporter(importArgs, computeClient)
+	importRunner, err := importer.NewImporter(importArgs, computeClient, *storageClient)
 	if err != nil {
 		terminate(importArgs, err)
 	}
@@ -88,7 +88,8 @@ func main() {
 type logWriter struct{}
 
 func (l *logWriter) Write(bytes []byte) (int, error) {
-	return fmt.Printf("[import-image]: %v %v", time.Now().UTC().Format("2006-01-02T15:04:05.999Z"), string(bytes))
+	return fmt.Printf("[%s]: %v %v", importer.LogPrefix,
+		time.Now().UTC().Format("2006-01-02T15:04:05.999Z"), string(bytes))
 }
 
 // terminate is used when there is a failure prior to running import. It sends
